@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <ctype.h>
 #include "SyncedMemory.h"
 
 #define CHECK {\
@@ -9,12 +10,21 @@
 		abort();\
 	}\
 }
-
+// use "__global__" to imply it's a kernel function
 __global__ void SomeTransform(char *input_gpu, int fsize) {
+	// find out the thread id(in x-dimension)
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	for(int i=0; i<10; i++){
+		int charIdx = idx*10 + i;
+		if(charIdx < fsize and input_gpu[charIdx] != '\n' and input_gpu[charIdx] != ' ') {
+			input_gpu[charIdx] = toupper(input_gpu[charIdx]);
+		}
+	}
+	/*	
 	if (idx < fsize and input_gpu[idx] != '\n') {
 		input_gpu[idx] = '!';
 	}
+	*/
 }
 
 int main(int argc, char **argv)
@@ -47,7 +57,10 @@ int main(int argc, char **argv)
 	// An example: transform the first 64 characters to '!'
 	// Don't transform over the tail
 	// And don't transform the line breaks
-	SomeTransform<<<2, 32>>>(input_gpu, fsize);
+	//format: kernel_name <<<gridDim,blockDim>>> (arg1, arg2, ...);
+	int gridDim = 4;
+	int blockDim = 32;
+	SomeTransform<<<gridDim, blockDim>>>(input_gpu, fsize);
 
 	puts(text_smem.get_cpu_ro());
 	return 0;
