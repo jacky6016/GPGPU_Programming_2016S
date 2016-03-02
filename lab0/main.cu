@@ -1,6 +1,5 @@
 #include <cstdio>
 #include <cstdlib>
-#include <ctype.h>
 #include "SyncedMemory.h"
 
 #define CHECK {\
@@ -17,7 +16,8 @@ __global__ void SomeTransform(char *input_gpu, int fsize) {
 	for(int i=0; i<10; i++){
 		int charIdx = idx*10 + i;
 		if(charIdx < fsize and input_gpu[charIdx] != '\n' and input_gpu[charIdx] != ' ') {
-			input_gpu[charIdx] = toupper(input_gpu[charIdx]);
+			if(input_gpu[charIdx] >= 97 and input_gpu[charIdx] <= 122)
+				input_gpu[charIdx] = input_gpu[charIdx] - 32;
 		}
 	}
 	/*	
