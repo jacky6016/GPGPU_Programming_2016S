@@ -50,6 +50,18 @@ __global__ void update(int *pos, int *lastpos, int text_size)
 		lastpos[idx] = pos[idx];
 }
 
+__global__ void set_char_mask(const char *text, int text_size, char ch, int *output)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	if(idx < text_size) {
+		if(text[idx] == ch)
+			output[idx] = 1;
+		else
+		output[idx] = 0;
+	}
+}
+
 
 void CountPosition(const char *text, int *pos, int text_size)
 {
@@ -102,7 +114,37 @@ int ExtractHead(const int *pos, int *head, int text_size)
 }
 
 void Part3(char *text, int *pos, int *head, int text_size, int n_head)
-{
-	
+{	
+	// find the occurences of the vowels
+	int numA, numE, numI, numO, numU;
+	int *buff;
+	int blocksize = 512;
+	int gridsize = text_size / blocksize + (text_size % blocksize == 0 ?0 : 1); // one thread per character
+	size_t arraysize = sizeof(int) * text_size;	
+	cudaMalloc((void **)&buff, arraysize);
 
+	thrust::device_ptr<int> buff_d(buff);
+	
+	set_char_mask<<<gridsize, blocksize>>>(text, text_size, 'A', buff);
+	cudaDeviceSynchronize();
+	numA = thrust::count(buff_d, buff_d+text_size, 1);
+
+	set_char_mask<<<gridsize, blocksize>>>(text, text_size, 'E', buff);
+	cudaDeviceSynchronize();
+	numE = thrust::count(buff_d, buff_d+text_size, 1);
+
+	set_char_mask<<<gridsize, blocksize>>>(text, text_size, 'I', buff);
+	cudaDeviceSynchronize();
+	numI = thrust::count(buff_d, buff_d+text_size, 1);
+
+	set_char_mask<<<gridsize, blocksize>>>(text, text_size, 'O', buff);
+	cudaDeviceSynchronize();
+	numO = thrust::count(buff_d, buff_d+text_size, 1);
+
+	set_char_mask<<<gridsize, blocksize>>>(text, text_size, 'U', buff);
+	cudaDeviceSynchronize();
+	numU = thrust::count(buff_d, buff_d+text_size, 1);
+
+	printf("frequency of A = %d, E = %d, I = %d, O = %d, U = %d\n", numA, numE, numI, numO, numU);
+	cudaFree(buff);
 }
