@@ -50,7 +50,8 @@ __global__ void trigonometric(uint8_t *imgptr,int t, int size)
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;		
 	if(idx < size) 
 	{
-		imgptr[idx] = (int)(floor((sin(idx % W * t * 2.0 * PI) + 1) * 128.0));
+		imgptr[idx] = (int)(floor((sin((idx % W + t) * 2.0 * PI) + 1) * 128.0));
+		
 	}
 }
 
@@ -74,17 +75,17 @@ void Lab2VideoGenerator::Generate(uint8_t *yuv) {
 	cudaMalloc((void **) &imgptr, H*W*sizeof(uint8_t));
 
 	int blocksize = 32;
-	int gridsize = H*W/blocksize + (H*W % blocksiz == 0 ?0 :1);
+	int gridsize = H*W/blocksize + (H*W % blocksize == 0 ?0 :1);
 
-	trigonometric<<<gridsize, blocksize>>>(imgptr, t, H*W);
+	trigonometric<<<gridsize, blocksize>>>(imgptr, impl->t, H*W);
 	cudaMemcpy(yuv, imgptr, H*W, cudaMemcpyDeviceToDevice); 
 	cudaDeviceSynchronize();
 
-	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W), t, H*W/4);
+	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W), impl->t, H*W/4);
 	cudaMemcpy(yuv+(H*W), imgptr, H*W/4, cudaMemcpyDeviceToDevice);
 	cudaDeviceSynchronize();
 
-	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W)+(H*W/4), t, H*W/4);
+	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W)+(H*W/4),impl->t, H*W/4);
 	cudaMemcpy(yuv+(H*W)+(H*W)/4, imgptr, H*W/4, cudaMemcpyDeviceToDevice);
 	cudaDeviceSynchronize();
 
