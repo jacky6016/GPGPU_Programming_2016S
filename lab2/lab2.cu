@@ -1,9 +1,10 @@
 #include "lab2.h"
 #include <math.h>
-
+#include <stdio.h>
 static const unsigned W = 640;
 static const unsigned H = 480;
 static const unsigned NFRAME = 960;
+static const double freq = (double)1/(double)96;
 
 struct Lab2VideoGenerator::Impl {
 	int t = 0;
@@ -69,8 +70,8 @@ __device__ double dot( const Grad& g, double x, double y ) {
 __global__ void noise(uint8_t *imgptr, const Grad *grad3, uint8_t *perm, uint8_t *permMod12, int t, int size)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;		
-	double xin = (double)(idx / W);
-	double yin = (double)(idx / H);
+	double xin = (double)(idx % W) / (double)W;
+	double yin = (double)(idx / W) / (double)H;
 	// Skewing/Unskewing factors for 2D
 	const double F2 = 0.5 * (sqrt( 3.0 ) - 1.0);
 	const double G2 = (3.0 - sqrt( 3.0 )) / 6.0;
@@ -115,18 +116,22 @@ __global__ void noise(uint8_t *imgptr, const Grad *grad3, uint8_t *perm, uint8_t
         t2 *= t2;
         n2 = t2 * t2 * dot( grad3[gi2], x2, y2 );
     }
-    imgptr[idx] = (int)(floor(70.0 * (n0 + n1 + n2)));
+    imgptr[idx] = (int)(floor((70.0 * (n0 + n1 + n2) + 1)*128));
 	}
+	printf("test");
 }
 
 __global__ void trigonometric(uint8_t *imgptr,int t, int size)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;		
+	double x = double(idx % W) / (double)W;
+	double y = double(idx / W) / (double)H;
 	if(idx < size) 
 	{
-		imgptr[idx] = (int)(floor((sin((idx % W + t) * 2.0 * PI) + 1) * 128.0));		
+		imgptr[idx] = (int)(floor((sin(2.0 * PI * x * 3 * t) + 1) * 128.0));		
 	}
 }
+
 
 Lab2VideoGenerator::Lab2VideoGenerator(): impl(new Impl) {
 }
@@ -172,15 +177,15 @@ void Lab2VideoGenerator::Generate(uint8_t *yuv) {
 	int gridsize = H*W/blocksize + (H*W % blocksize == 0 ?0 :1);
 
 	init();
-	noise<<<gridsize, blocksize>>>(imgptr, grad3, perm, permMod12, impl->t, H*W);
+	trigonometric<<<gridsize, blocksize>>>(imgptr, impl->t, H*W);
 	cudaMemcpy(yuv, imgptr, H*W, cudaMemcpyDeviceToDevice); 
 	cudaDeviceSynchronize();
 
-	noise<<<gridsize, blocksize>>>(imgptr+(H*W), grad3, perm, permMod12, impl->t, H*W/4);
+	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W), impl->t, H*W/4);
 	cudaMemcpy(yuv+(H*W), imgptr, H*W/4, cudaMemcpyDeviceToDevice);
 	cudaDeviceSynchronize();
 
-	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W)+(H*W/4),impl->t, H*W/4);
+	trigonometric<<<gridsize, blocksize>>>(imgptr+(H*W)+(H*W/4), impl->t, H*W/4);
 	cudaMemcpy(yuv+(H*W)+(H*W)/4, imgptr, H*W/4, cudaMemcpyDeviceToDevice);
 	cudaDeviceSynchronize();
 
