@@ -96,6 +96,17 @@ __global__ void PoissonImageCloningIteration(float *fixed, const float *mask, fl
 	}
 }
 
+__global__ void sor_add(float w, float *base, float *next, const int wt, const int ht)
+{
+	const int xt = blockIdx.x * blockDim.x + threadIdx.x;
+	const int yt = blockIdx.y * blockDim.y + threadIdx.y;
+	const int curt = wt*yt+xt;
+
+	next[curt*3] = next[curt*3] * w + (1-w) * base[curt*3];
+	next[curt*3+1] = next[curt*3+1] * w + (1-w) * base[curt*3+1];
+	next[curt*3+2] = next[curt*3+2] * w + (1-w) * base[curt*3+2];
+}
+
 void PoissonImageCloning(
 	const float *background,
 	const float *target,
@@ -131,9 +142,29 @@ void PoissonImageCloning(
 	);
 	cudaDeviceSynchronize();
 	cudaMemcpy(buf1, target, sizeof(float)*3*wt*ht, cudaMemcpyDeviceToDevice);
-	
+
+
+	// Implementing successive over-relaxation method	
+	float w = 1.5;
+	for (int i = 0; i < 10; i++)
+	{
+		// use buf1 as reference and write to buf2
+		PoissonImageCloningIteration<<<gdim, bdim>>>(
+			fixed, mask, buf1, buf2, wt, ht
+		);
+		cudaDeviceSynchronize();
+		sor_add<<<gdim, bdim>>>(w, buf1, buf2, wt, ht);
+		cudaDeviceSynchronize();
+		// use buf2 as reference and write back to buf1
+		PoissonImageCloningIteration<<<gdim, bdim>>>(
+			fixed, mask, buf2, buf1, wt, ht
+		);
+		cudaDeviceSynchronize();
+		sor_add<<<gdim, bdim>>>(w, buf2, buf1, wt, ht);
+		cudaDeviceSynchronize();
+	}
 	// iterate
-	for (int i = 0; i < 10000; ++i) {
+	for (int i = 0; i < 5000; ++i) {
 		// use buf1 as reference and write to buf2
 		PoissonImageCloningIteration<<<gdim, bdim>>>(
 			fixed, mask, buf1, buf2, wt, ht
